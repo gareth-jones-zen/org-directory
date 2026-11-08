@@ -8,6 +8,11 @@ report on stdin, the same shape doc-filer and teams-channel-notes give theirs, p
 
 It runs from the settings file's folder, with no window.
 
+**Contact sheets, if `[contacts]` is set, are written after the charts**, to their own folder and never
+passed to the hook, as they hold personal numbers. With People First switched on, its numbers are read
+on every sync and kept in the state file; if a read fails, the last good numbers are used, the sheets say
+how old they are, and a scheduled run notifies once they're more than STALE_DAYS old.
+
 **A chart is only rewritten when the directory changed**, so a daily sync of an unchanged directory
 writes nothing and commits nothing. **A chart that shrinks sharply isn't written** (a quarter of it,
 and at least ten people): a partial answer from Graph would otherwise read as a wave of leavers.
@@ -22,12 +27,13 @@ import sys
 
 from m365_graph import Client
 
-from . import locks
+from . import contacts, locks, peoplefirst
 from .config import Config
 from .directory import MARKER, SCOPES, Directory, changes, fetch, log_changes, render
 
 NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 SHRINK = 0.25
+STALE_DAYS = 3
 
 
 def client(config: Config, interactive: bool | None = None) -> Client:
@@ -78,6 +84,10 @@ def summary(report: dict) -> str:
             f"{report['unchanged']} unchanged, {report['people']} people in the directory")
     if report["failed"]:
         text += f", {len(report['failed'])} failed"
+    if report.get("contacts") is not None:
+        text += f"; contact sheets {'written' if report['contacts'] else 'unchanged'}"
+    if report.get("people_first_failed"):
+        text += f"; People First failed ({report['people_first_failed'][:120]})"
     return text
 
 
@@ -88,7 +98,29 @@ def load_state(config: Config) -> dict:
         return {}
 
 
-def sync(config: Config, graph=None, dry_run: bool = False, today: dt.date | None = None, log=print) -> dict:
+def numbers(config: Config, state: dict, report: dict, log, read=None) -> tuple[dict, str, dict | None]:
+    """People First's numbers, the sheets' line about them, and what to keep in the state file."""
+    if not config.people_first.enabled:
+        return {}, "People First isn't used.", None
+    kept = state.get("people_first")
+    try:
+        found = (read or peoplefirst.fetch)(config.people_first, log=log)
+        now = dt.datetime.now()
+        return found, f"People First read {now:%d %b %Y %H:%M}.", {"read": now.isoformat(timespec="seconds"),
+                                                                    "numbers": found}
+    except Exception as error:
+        report["people_first_failed"] = str(error)
+        log(f"people first: {error}")
+        if not kept:
+            report["people_first_stale"] = True
+            return {}, "People First couldn't be read, so personal numbers are missing.", None
+        when = dt.datetime.fromisoformat(kept["read"])
+        report["people_first_stale"] = (dt.datetime.now() - when).days >= STALE_DAYS
+        return kept["numbers"], f"People First last read {when:%d %b %Y %H:%M} (the latest read failed).", kept
+
+
+def sync(config: Config, graph=None, dry_run: bool = False, today: dt.date | None = None, log=print,
+         read_people_first=None) -> dict:
     today = today or dt.date.today()
     state = load_state(config)
     after = fetch(graph or client(config))
@@ -136,10 +168,17 @@ def sync(config: Config, graph=None, dry_run: bool = False, today: dt.date | Non
         charts[chart.name] = {"root": root.id, "members": members, "changed": changed}
     if report["changes"] and config.changes_file:
         report["written"].append(str(config.changes_file))
+    kept = state.get("people_first")
+    if config.contacts:
+        found, line, kept = numbers(config, state, report, log, read_people_first)
+        stamp = f"Directory read {dt.datetime.now():%d %b %Y %H:%M}. {line}"
+        report["contacts"] = contacts.write(config.contacts, after, found, stamp, dry_run=dry_run, log=log)
     if not dry_run:
         config.state_file.parent.mkdir(parents=True, exist_ok=True)
-        config.state_file.write_text(json.dumps({"synced": dt.datetime.now().isoformat(timespec="seconds"),
-                                                 "people": after.snapshot(), "charts": charts}), encoding="utf-8")
+        saved = {"synced": dt.datetime.now().isoformat(timespec="seconds"), "people": after.snapshot(), "charts": charts}
+        if kept and config.people_first.enabled:
+            saved["people_first"] = kept   # personal numbers: the state file stays on this machine
+        config.state_file.write_text(json.dumps(saved), encoding="utf-8")
     return report
 
 
@@ -162,9 +201,10 @@ def after_run(config: Config, report: dict, log=print) -> None:
 
 
 def run(config: Config, dry_run: bool = False, hook: bool = False, interactive: bool | None = None,
-        log=print, graph=None) -> dict:
+        log=print, graph=None, read_people_first=None) -> dict:
     with locks.run(config):
-        report = sync(config, graph=graph or client(config, interactive), dry_run=dry_run, log=log)
+        report = sync(config, graph=graph or client(config, interactive), dry_run=dry_run, log=log,
+                      read_people_first=read_people_first)
     if hook and not dry_run and report["written"] and config.after_run:
         after_run(config, report, log)
     return report

@@ -5,8 +5,8 @@ What it's built on, from reading Zen's directory (Nov 2026):
   seconds. Walking directReports person by person took a call each.
 - **Only enabled member accounts count.** Guests (a quarter of the accounts) and disabled accounts are
   left out; a leaver's disabled account can keep its manager for weeks, and would otherwise still show.
-- **Job title and department are well filled in; mobile numbers aren't** (2 in 171). Phones aren't
-  written anywhere: a chart is for who's who, not for contacting people.
+- **Job title and department are well filled in; mobile numbers aren't** (2 in 171). Phones are never
+  written into a chart or the state file, only into the contact sheets (contacts.py).
 - **A chart is someone and everyone under them**, to a depth if set.
 - **Changes are found by comparing with the last snapshot**: joiners, leavers, new titles, departments,
   managers and names. Someone appearing in or leaving a chart is told apart from someone joining or
@@ -20,7 +20,7 @@ import pathlib
 from dataclasses import dataclass, field
 
 SCOPES = ("User.Read.All",)
-FIELDS = "id,displayName,jobTitle,department,userPrincipalName,mail,userType"
+FIELDS = "id,displayName,jobTitle,department,userPrincipalName,mail,userType,businessPhones,mobilePhone"
 URL = (f"/users?$filter=accountEnabled%20eq%20true&$select={FIELDS}"
        "&$expand=manager($select=id)&$top=999")
 MARKER = "Written by org-directory"
@@ -35,6 +35,8 @@ class Person:
     manager: str | None = None
     login: str = ""          # userPrincipalName, lower case
     mail: str = ""           # lower case
+    work_phone: str = ""     # for contact sheets only: never in a chart or the snapshot
+    mobile: str = ""
 
     def record(self) -> dict:
         return {"name": self.name, "title": self.title, "department": self.department, "manager": self.manager}
@@ -103,7 +105,8 @@ def fetch(graph) -> Directory:
         people[user["id"]] = Person(
             id=user["id"], name=(user.get("displayName") or "").strip(), title=(user.get("jobTitle") or "").strip(),
             department=(user.get("department") or "").strip(), manager=(user.get("manager") or {}).get("id"),
-            login=(user.get("userPrincipalName") or "").lower(), mail=(user.get("mail") or "").lower())
+            login=(user.get("userPrincipalName") or "").lower(), mail=(user.get("mail") or "").lower(),
+            work_phone=((user.get("businessPhones") or [""])[0] or "").strip(), mobile=(user.get("mobilePhone") or "").strip())
     return Directory(people)
 
 

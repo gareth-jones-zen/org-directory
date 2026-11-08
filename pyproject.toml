@@ -4,13 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "org-directory"
-version = "0.1.0"
-description = "Org charts written from the Microsoft 365 directory, kept up to date."
+version = "0.2.0"
+description = "Org charts and emergency contact sheets from the Microsoft 365 directory, kept up to date."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "m365-graph>=0.1",   # sign-in and Graph requests; not on PyPI, see README
 ]
+
+[project.optional-dependencies]
+people-first = ["playwright>=1.44"]   # only to add numbers from People First; drives Edge
 
 [project.scripts]
 org-directory = "org_directory.cli:main"

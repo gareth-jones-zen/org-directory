@@ -1,3 +1,3 @@
-"""org-directory: org charts written from the Microsoft 365 directory."""
+"""org-directory: org charts and emergency contact sheets from the Microsoft 365 directory."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

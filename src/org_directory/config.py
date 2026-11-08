@@ -17,6 +17,22 @@
     depth = 0                               # optional: levels below the top to include (0: all)
     changes_depth = 0                       # optional: report changes only this far down (0: all)
 
+    [contacts]                              # optional: emergency contact sheets, with phone numbers
+    folder = "~/OneDrive/Emergency contacts"   # NOT a repo: they hold personal numbers
+
+    [[contacts.group]]
+    name = "My team"
+    root = "you@example.com"                # someone and everyone under them...
+    depth = 1                               # ...this many levels down (0: all)
+    people = ["peer@example.com"]           # ...and/or a list, by email
+
+    [people_first]                          # optional: add the numbers People First lets you see
+    enabled = true                          # the switch: false (or no section) uses the directory alone
+    url = "https://yourorg.people-first.com"
+    tenant_code = "yourorg"                 # optional: default, the first part of url
+    account = "you@example.com"             # optional: the account to pick at sign-in (default login_hint)
+    edge_profile = "..."                    # optional: its own Edge profile (default under LOCALAPPDATA)
+
 Paths may use ~ and %VARIABLES%; relative paths are relative to the settings file.
 """
 
@@ -28,6 +44,8 @@ import pathlib
 import re
 import tomllib
 from dataclasses import dataclass, field
+
+from . import contacts as contacts_mod, peoplefirst
 
 APPDATA = pathlib.Path(os.environ.get("APPDATA", pathlib.Path.home()))
 LOCAL = pathlib.Path(os.environ.get("LOCALAPPDATA", pathlib.Path.home())) / "org-directory"
@@ -68,6 +86,8 @@ class Config:
     after_run: list = field(default_factory=list)
     daily_at: str = "09:00"
     changes_file: pathlib.Path | None = None
+    contacts: contacts_mod.Settings | None = None
+    people_first: peoplefirst.Settings = field(default_factory=peoplefirst.Settings)
 
 
 def _path(value: str, base: pathlib.Path) -> pathlib.Path:
@@ -103,7 +123,41 @@ def load(path: pathlib.Path | None = None) -> Config:
         config.charts.append(Chart(name=name, root=item["root"], output=_path(item["output"], base),
                                    heading=item.get("heading", ""), depth=int(item.get("depth", 0)),
                                    changes_depth=int(item.get("changes_depth", 0))))
+    config.contacts = _contacts(raw.get("contacts"), path, base)
+    config.people_first = _people_first(raw.get("people_first"), config, path)
     return config
+
+
+def _contacts(raw: dict | None, path: pathlib.Path, base: pathlib.Path) -> contacts_mod.Settings | None:
+    if not raw:
+        return None
+    if not raw.get("folder"):
+        raise ValueError(f"[contacts] in {path} has no folder.")
+    groups = []
+    for i, item in enumerate(raw.get("group", []), 1):
+        name = item.get("name", f"Group {i}")
+        if not item.get("root") and not item.get("people"):
+            raise ValueError(f"[[contacts.group]] {name} in {path} needs a root, people, or both.")
+        groups.append(contacts_mod.Group(name=name, root=item.get("root", ""), depth=int(item.get("depth", 0)),
+                                         people=list(item.get("people", []))))
+    if not groups:
+        raise ValueError(f"[contacts] in {path} has no [[contacts.group]].")
+    return contacts_mod.Settings(folder=_path(raw["folder"], base), groups=groups)
+
+
+def _people_first(raw: dict | None, config: Config, path: pathlib.Path) -> peoplefirst.Settings:
+    if not raw or not raw.get("enabled", False):
+        return peoplefirst.Settings(enabled=False)
+    url = str(raw.get("url", "")).rstrip("/")
+    match = re.fullmatch(r"https://([a-z0-9-]+)\.people-first\.com", url, re.I)
+    if not url.startswith("https://"):
+        raise ValueError(f"[people_first] in {path} needs url, such as \"https://yourorg.people-first.com\".")
+    tenant = raw.get("tenant_code") or (match.group(1).split("-")[0] if match else "")
+    if not tenant:
+        raise ValueError(f"[people_first] in {path} needs tenant_code: it couldn't be worked out from the url.")
+    return peoplefirst.Settings(
+        enabled=True, url=url, tenant_code=tenant, account=raw.get("account") or config.login_hint or "",
+        edge_profile=_path(raw["edge_profile"], config.path.parent) if raw.get("edge_profile") else LOCAL / "edge-profile")
 
 
 def create_default() -> pathlib.Path:

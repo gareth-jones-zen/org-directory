@@ -6,6 +6,8 @@
     org-directory sync --dry-run     say what it would write and what changed
     org-directory sync --hook        then run the settings' after_run command, if anything was written
     org-directory who "<name>"       someone's title, department, manager chain and reports (last sync)
+    org-directory people-first sign-in   sign in to People First in a window (first time, or if it asks)
+    org-directory people-first check     what People First lets you see: counts only, no numbers
     org-directory autostart on       sync daily at daily_at and at logon, and now (off, status)
 """
 
@@ -42,6 +44,8 @@ def main(argv: list | None = None) -> int:
                    help="as the daily task runs it: never open a browser, and notify a problem")
     who = sub.add_parser("who", help="look someone up in the last sync")
     who.add_argument("name", help="all or part of a name, or an email address")
+    pf = sub.add_parser("people-first", help="People First: sign in, or check what it lets you see")
+    pf.add_argument("action", choices=["sign-in", "check"])
     auto = sub.add_parser("autostart", help="sync daily and at logon (Task Scheduler)")
     auto.add_argument("action", choices=["on", "off", "status"])
     args = parser.parse_args(argv)
@@ -59,6 +63,8 @@ def main(argv: list | None = None) -> int:
             return 0
         if args.command == "who":
             return _who(config, args.name)
+        if args.command == "people-first":
+            return _people_first(config, args.action)
         log = logger(config, echo=not args.json and not args.scheduled)
         try:
             report = run(config, dry_run=args.dry_run, hook=args.hook,
@@ -72,6 +78,9 @@ def main(argv: list | None = None) -> int:
         log(summary(report))
         if args.scheduled and (report["failed"] or report["untracked"]):
             notify("org-directory: a chart wasn't written", report["failed"] + report["untracked"])
+        if args.scheduled and report.get("people_first_stale"):
+            notify("org-directory: People First isn't being read",
+                   [report.get("people_first_failed", "")[:200], "The contact sheets' personal numbers are getting old."])
         if args.json:
             print(json.dumps(report, indent=1))
         return 1 if report["failed"] else 0
@@ -102,6 +111,31 @@ def _who(config: cfg.Config, name: str) -> int:
         print(f"...and {len(found) - 10} more. Be more specific.")
     print(f"(as of the sync of {state.get('synced', '?')})")
     return 0
+
+
+def _people_first(config: cfg.Config, action: str) -> int:
+    from . import peoplefirst
+    settings = config.people_first
+    if not settings.enabled:
+        print("People First is switched off: set enabled = true under [people_first] in the settings.", file=sys.stderr)
+        return 2
+    try:
+        if action == "sign-in":
+            print("A window opens: sign in to People First there. It closes by itself once you're in.")
+            peoplefirst.sign_in_window(settings)
+            print("Signed in.")
+            return 0
+        found = peoplefirst.fetch(settings)
+        fields = {}
+        for found_numbers in found.values():
+            for key in found_numbers:
+                fields[key] = fields.get(key, 0) + 1
+        print(f"People First gives numbers for {len(found)} people: "
+              + (", ".join(f"{k} {v}" for k, v in sorted(fields.items())) or "none"))
+        return 0
+    except peoplefirst.PeopleFirstError as error:
+        print(error, file=sys.stderr)
+        return 2
 
 
 def _autostart(args) -> int:
