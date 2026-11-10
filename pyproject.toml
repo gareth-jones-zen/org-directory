@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "org-directory"
-version = "0.2.0"
+version = "0.2.1"
 description = "Org charts and emergency contact sheets from the Microsoft 365 directory, kept up to date."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "m365-graph>=0.1",   # sign-in and Graph requests; not on PyPI, see README
+    "win-background>=0.1",   # the scheduled task, notifications, locks and the log; not on PyPI, see README
 ]
 
 [project.optional-dependencies]
