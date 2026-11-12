@@ -15,11 +15,11 @@ A chart is someone and everyone under them: a department, a division, or the who
 Needs Windows or anything else with Python 3.11+.
 
 ```
-pipx install --preinstall git+https://github.com/gareth-jones-zen/m365-graph --preinstall git+https://github.com/gareth-jones-zen/win-background git+https://github.com/gareth-jones-zen/org-directory
+pipx install --preinstall git+https://github.com/gareth-jones-zen/m365-graph --preinstall git+https://github.com/gareth-jones-zen/win-background --preinstall git+https://github.com/gareth-jones-zen/people-first-client git+https://github.com/gareth-jones-zen/org-directory
 ```
 
 `m365-graph` is the sign-in and Graph library it shares with teams-transcripts and teams-channel-notes;
-[win-background](https://github.com/gareth-jones-zen/win-background) does the scheduled task, notifications, locks and the log. Neither is on PyPI, so both are installed first, from their repos.
+[win-background](https://github.com/gareth-jones-zen/win-background) does the scheduled task, notifications, locks and the log; [people-first-client](https://github.com/gareth-jones-zen/people-first-client) is the People First sign-in, used only if you switch People First on. None is on PyPI, so they're installed first, from their repos.
 
 ## Getting started
 
@@ -114,7 +114,6 @@ url = "https://yourorg.people-first.com"
 ```
 
 ```
-pipx inject org-directory playwright             # or install with the [people-first] extra
 org-directory people-first check                 # what it lets you see: counts only, no numbers
 org-directory people-first sign-in               # only if check says it needs a sign-in
 ```
@@ -126,6 +125,7 @@ org-directory people-first sign-in               # only if check says it needs a
 - **It takes phone numbers only:** personal mobile and phone, and work mobile. Personal email, addresses and next of kin are left alone.
 - **If a read fails, the sheets keep the last good numbers** and say when they were read. A scheduled run notifies once they're three days old.
 - The last good numbers are kept in the state file, which stays on your machine.
+- **The sign-in is [people-first-client](https://github.com/gareth-jones-zen/people-first-client)'s** (since 0.2.2), shared with other tools that read People First. **While Edge is open it holds a lock named after the profile**, so a tool using the same profile (and so the same sign-in) waits its turn rather than failing to open Edge.
 
 ## Keeping it current: `autostart`
 
