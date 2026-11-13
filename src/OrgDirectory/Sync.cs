@@ -93,8 +93,13 @@ public static class Sync
     public const double LockTimeoutSeconds = 600;
 
     /// <summary>The run lock, named as the Python version named it, so a .NET sync, a Python sync and cover-rota (which
-    /// takes it too) exclude each other.</summary>
-    public static string RunLockName(Config config) => $"org-directory-run-{Locks.Key(config.Path)}";
+    /// takes it too) exclude each other. The key is win_background's key(): WinBackground's Locks.Key lower-cases as
+    /// .NET does, which differs from Python's str.lower() for U+0130 and a final capital sigma, so it's worked out
+    /// here with Python's lower-casing.</summary>
+    public static string RunLockName(Config config) => $"org-directory-run-{LockKey(config.Path)}";
+
+    internal static string LockKey(string text) =>
+        Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Py.Lower(text))))[..16];
 
     /// <summary>load_state(): the last sync's state; empty if it's missing or isn't JSON. Text that isn't UTF-8 is a
     /// PyValueError, as Python's UnicodeDecodeError was.</summary>

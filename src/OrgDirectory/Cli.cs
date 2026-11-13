@@ -164,7 +164,7 @@ public static class Cli
         var found = org.Search(name);
         if (found.Count == 0)
         {
-            Print(host.Out, $"Nobody matching {PyCompat.Py.ReprString(name)} in the sync of {synced}.");
+            Print(host.Out, $"Nobody matching {Py.Repr(name)} in the sync of {synced}.");
             return 1;
         }
         foreach (var person in found.Take(10))
@@ -261,7 +261,8 @@ public static class Cli
     {
         try
         {
-            writer.Write(PyStr.WindowsNewlines(text + "\n"));
+            // Only "\r\n" from a raw string literal in a CRLF checkout: other line breaks in names stay as Python prints them.
+            writer.Write(PyStr.WindowsNewlines(text.Replace("\r\n", "\n", StringComparison.Ordinal) + "\n"));
             writer.Flush();
         }
         catch (IOException)

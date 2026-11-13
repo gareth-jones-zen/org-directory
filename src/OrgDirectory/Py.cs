@@ -111,6 +111,48 @@ public static class Py
     /// <summary>(a - b).days: whole days, rounded down (so a negative difference of half a day is -1).</summary>
     public static long Days(DateTime a, DateTime b) => (long)Math.Floor((a - b).TotalDays);
 
+    /// <summary>repr(str): in single quotes (double if it holds a ' and no "), with backslash, tab, newline and carriage
+    /// return escaped, and every character Python doesn't count as printable escaped too (controls, format and
+    /// private-use characters, surrogates, unassigned code points, and separators other than the space).</summary>
+    public static string Repr(string text)
+    {
+        var quote = text.Contains('\'') && !text.Contains('"') ? '"' : '\'';
+        var b = new StringBuilder().Append(quote);
+        for (var i = 0; i < text.Length; i++)
+        {
+            var c = text[i];
+            int code = c;
+            if (char.IsHighSurrogate(c) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]))
+                code = char.ConvertToUtf32(c, text[++i]);
+            if (code == '\\' || code == quote)
+                b.Append('\\').Append((char)code);
+            else if (code == '\t')
+                b.Append("\\t");
+            else if (code == '\n')
+                b.Append("\\n");
+            else if (code == '\r')
+                b.Append("\\r");
+            else if (code < 0x20 || code == 0x7f || !Printable(code))
+                b.Append(code <= 0xff ? $"\\x{code:x2}" : code <= 0xffff ? $"\\u{code:x4}" : $"\\U{code:x8}");
+            else if (code > 0xffff)
+                b.Append(char.ConvertFromUtf32(code));
+            else
+                b.Append((char)code);
+        }
+        return b.Append(quote).ToString();
+    }
+
+    private static bool Printable(int code)
+    {
+        if (code == ' ')
+            return true;
+        if (code is >= 0xd800 and <= 0xdfff)
+            return false;
+        return CharUnicodeInfo.GetUnicodeCategory(code) is not (UnicodeCategory.Control or UnicodeCategory.Format
+            or UnicodeCategory.Surrogate or UnicodeCategory.PrivateUse or UnicodeCategory.OtherNotAssigned
+            or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator or UnicodeCategory.SpaceSeparator);
+    }
+
     /// <summary>Python's str[:n]: the first n code points.</summary>
     public static string Head(string text, int count) => PyCompat.PyStr.Head(text, count);
 }

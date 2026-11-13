@@ -71,7 +71,12 @@ public static class Charts
 
     /// <summary>changes(): what changed in one chart, as sentences. changesDepth limits them to people that many
     /// levels from the top (0: everyone). Python sorts sets, so people with the same name came out in no fixed order;
-    /// here they keep the chart's order.</summary>
+    /// here they keep the chart's order.
+    ///
+    /// One deliberate difference: someone in the chart's last member list but not in the last snapshot is left out of
+    /// the "was" comparisons. Python raised KeyError there, on every sync from then on. It happens after a sync that
+    /// skipped this chart (its file was edited by hand, it shrank sharply, or its top person was missing) while the
+    /// snapshot moved on without that person, such as the sync after a partial answer from Graph.</summary>
     public static List<string> Changes(Org before, Org after, IReadOnlyDictionary<string, int> chartBefore,
         IReadOnlyDictionary<string, int> chartAfter, int changesDepth = 0)
     {
@@ -92,7 +97,7 @@ public static class Charts
             else
                 output.Add($"New in the directory: {Describe(person, after)}.");
         }
-        foreach (var id in Py.Sorted(chartBefore.Keys.Where(id => !chartAfter.ContainsKey(id)), id => Py.Lower(before.People[id].Name)))
+        foreach (var id in Py.Sorted(chartBefore.Keys.Where(id => !chartAfter.ContainsKey(id) && before.People.ContainsKey(id)), id => Py.Lower(before.People[id].Name)))
         {
             if (!Counts(id))
                 continue;
@@ -101,7 +106,7 @@ public static class Charts
             else
                 output.Add($"Gone from the directory (left, or the account was disabled): {Describe(before.People[id], before)}.");
         }
-        foreach (var id in Py.Sorted(chartBefore.Keys.Where(chartAfter.ContainsKey), id => Py.Lower(after.People[id].Name)))
+        foreach (var id in Py.Sorted(chartBefore.Keys.Where(id => chartAfter.ContainsKey(id) && before.People.ContainsKey(id)), id => Py.Lower(after.People[id].Name)))
         {
             if (!Counts(id))
                 continue;
