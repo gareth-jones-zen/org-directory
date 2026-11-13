@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>org-directory-background</AssemblyName>
+    <RootNamespace>OrgDirectory</RootNamespace>
+    <PublishAot>true</PublishAot>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\OrgDirectory\OrgDirectory.csproj" />
+  </ItemGroup>
+</Project>

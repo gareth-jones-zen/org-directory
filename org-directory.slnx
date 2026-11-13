@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OrgDirectory/OrgDirectory.csproj" />
+    <Project Path="src/OrgDirectory.Console/OrgDirectory.Console.csproj" />
+    <Project Path="src/OrgDirectory.Background/OrgDirectory.Background.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OrgDirectory.Tests/OrgDirectory.Tests.csproj" />
+    <Project Path="tests/ParityRunner/ParityRunner.csproj" />
+  </Folder>
+</Solution>
