@@ -12,14 +12,13 @@ A chart is someone and everyone under them: a department, a division, or the who
 
 ## Install
 
-Needs Windows or anything else with Python 3.11+.
+Windows (x64) only; nothing else is needed (People First, if you switch it on, also needs Microsoft Edge, which Windows has).
 
-```
-pipx install --preinstall git+https://github.com/gareth-jones-zen/m365-graph --preinstall git+https://github.com/gareth-jones-zen/win-background --preinstall git+https://github.com/gareth-jones-zen/people-first-client git+https://github.com/gareth-jones-zen/org-directory
-```
+1. Download `org-directory-<version>-win-x64.zip` from [Releases](https://github.com/gareth-jones-zen/org-directory/releases).
+2. Unzip it to a folder that will stay put, such as `%LOCALAPPDATA%\Programs\org-directory`. The scheduled task (below) runs the program from there.
+3. Run the commands below from that folder, or add it to your `PATH`.
 
-`m365-graph` is the sign-in and Graph library it shares with teams-transcripts and teams-channel-notes;
-[win-background](https://github.com/gareth-jones-zen/win-background) does the scheduled task, notifications, locks and the log; [people-first-client](https://github.com/gareth-jones-zen/people-first-client) is the People First sign-in, used only if you switch People First on. None is on PyPI, so they're installed first, from their repos.
+It holds two programs: `org-directory.exe`, for a console, and `org-directory-background.exe`, the same program with no window, which the daily task runs.
 
 ## Getting started
 
@@ -125,7 +124,7 @@ org-directory people-first sign-in               # only if check says it needs a
 - **It takes phone numbers only:** personal mobile and phone, and work mobile. Personal email, addresses and next of kin are left alone.
 - **If a read fails, the sheets keep the last good numbers** and say when they were read. A scheduled run notifies once they're three days old.
 - The last good numbers are kept in the state file, which stays on your machine.
-- **The sign-in is [people-first-client](https://github.com/gareth-jones-zen/people-first-client)'s** (since 0.2.2), shared with other tools that read People First. **While Edge is open it holds a lock named after the profile**, so a tool using the same profile (and so the same sign-in) waits its turn rather than failing to open Edge.
+- **The sign-in is shared with other tools that read People First** through the same Edge profile. **While Edge is open it holds a lock named after the profile**, so a tool using the same profile (and so the same sign-in) waits its turn rather than failing to open Edge.
 
 ## Keeping it current: `autostart`
 
@@ -138,7 +137,7 @@ org-directory autostart off
 The directory changes slowly, so there's no watcher: a Task Scheduler task, `org-directory sync`, runs `sync --hook --scheduled` once a day and at logon.
 - It runs as you, only while you're logged on, with no admin rights.
 - If the laptop was asleep at the time, it catches up when it wakes.
-- It runs `pythonw`, so there's no window.
+- It runs `org-directory-background.exe`, so there's no window.
 - **It never opens a browser.** A lapsed sign-in, or a chart that couldn't be written, is notified. Run `org-directory sign-in` at a console to fix a sign-in.
 - It logs to `%LOCALAPPDATA%\org-directory\org-directory.log` by default (set `log_file`).
 
@@ -154,7 +153,7 @@ The directory changes slowly, so there's no watcher: a Task Scheduler task, `org
 To do something with what's written, such as commit it to git, set `after_run`:
 
 ```toml
-after_run = ["python", "commit.py"]
+after_run = ["powershell", "-NoProfile", "-File", "commit.ps1"]   # any command, and its arguments
 ```
 
 It runs after a sync that wrote a file, with `--hook` (the daily task always passes it). It runs from the settings file's folder, with no window, and gets a JSON report on stdin:
@@ -170,8 +169,7 @@ It's the same shape as [doc-filer](https://github.com/gareth-jones-zen/doc-filer
 
 ## Sign-in and permissions
 
-It signs in with [m365-graph](https://github.com/gareth-jones-zen/m365-graph), as Microsoft's
-"Graph Command Line Tools" app.
+It signs in as Microsoft's "Graph Command Line Tools" app, so there's no app to register.
 
 - **Reading the directory needs `User.Read.All`.** That usually needs an admin's approval: request it on the "Approval required" screen at sign-in. Some organisations have already granted it for this app.
 
@@ -185,29 +183,15 @@ It signs in with [m365-graph](https://github.com/gareth-jones-zen/m365-graph), a
 - **It only knows what HR or IT put in the directory.** A title changed in the HR system appears only once it reaches Microsoft 365, and a job title is often missing or out of date.
 - **Teams and squads aren't in the directory**, only reporting lines and departments.
 
-## The .NET version (in progress, branch `dotnet`)
+## Building
 
-A port to .NET 11 with Native AOT: two self-contained programs of about 11 MB, `org-directory.exe` (console) and
-`org-directory-background.exe` (no window, for the daily task), with the same commands, settings file, state file,
-log, task name, lock names, hook payload and exit codes as the Python version, so either can replace the other with
-no data moved. People First is read through background-tools-lib's PeopleFirstClient, which drives Edge over its
-DevTools pipe (no Playwright or Node) and closes it as soon as the token is taken. **The Python version above is
-still the one in use.** See PLAN.md for the switch-over.
+It's .NET 11, published as Native AOT. It needs [background-tools-lib](https://github.com/gareth-jones-zen/background-tools-lib)
+checked out beside this repository (or set the `BackgroundToolsLib` property to a checkout elsewhere), then:
 
-- **Building** needs [background-tools-lib](https://github.com/gareth-jones-zen/background-tools-lib) checked out
-  beside this repository, then `dotnet test -c Release`. Set the `BackgroundToolsLib` property to use a checkout
-  somewhere else.
-- **Parity is tested against the Python version itself.** `tests/parity` runs the Python code (from `src/`, as
-  tagged `v0.2.2`) as an oracle, with the clock frozen and the hook and People First faked, to make the goldens the
-  .NET tests must match: synthetic sync scenarios (every chart, changes file, contact sheet and state file by
-  SHA-256, the report, summary, log lines and hook input, and `who`), csv quoting, tel: links, escaping, sorting,
-  repr, settings errors and the run lock's name. Every person in the goldens is made up. `tests/parity/live.py`
-  and `tests/ParityRunner` compare the two on a real directory, locally only, printing counts and hashes.
-- **Deliberate differences:**
-  - two Python crashes fixed. A chart skipped once (its file edited by hand, a sharp shrink, or its top person
-    missing) while the snapshot moved on raised KeyError on every later sync; a manager loop through a chart's top
-    person recursed until Python gave up. Neither changes the output when the crash wouldn't have happened;
-  - people with the same name are listed in the chart's order in the changes (Python's order was arbitrary);
-  - a state file that's JSON but not an object stops the sync with a clear error (Python crashed);
-  - output redirected to a file or pipe is UTF-8 (Python used the code page, replacing what didn't fit);
-  - error messages from .NET (HTTP, file system, People First) are worded as .NET words them.
+```
+dotnet test -c Release
+dotnet publish src/OrgDirectory.Console -c Release -r win-x64 -o out
+dotnet publish src/OrgDirectory.Background -c Release -r win-x64 -o out
+```
+
+A tag `v*` builds and publishes a release.

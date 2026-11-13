@@ -6,6 +6,5 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/OrgDirectory.Tests/OrgDirectory.Tests.csproj" />
-    <Project Path="tests/ParityRunner/ParityRunner.csproj" />
   </Folder>
 </Solution>
