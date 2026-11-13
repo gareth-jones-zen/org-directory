@@ -184,3 +184,30 @@ It signs in with [m365-graph](https://github.com/gareth-jones-zen/m365-graph), a
 
 - **It only knows what HR or IT put in the directory.** A title changed in the HR system appears only once it reaches Microsoft 365, and a job title is often missing or out of date.
 - **Teams and squads aren't in the directory**, only reporting lines and departments.
+
+## The .NET version (in progress, branch `dotnet`)
+
+A port to .NET 11 with Native AOT: two self-contained programs of about 11 MB, `org-directory.exe` (console) and
+`org-directory-background.exe` (no window, for the daily task), with the same commands, settings file, state file,
+log, task name, lock names, hook payload and exit codes as the Python version, so either can replace the other with
+no data moved. People First is read through background-tools-lib's PeopleFirstClient, which drives Edge over its
+DevTools pipe (no Playwright or Node) and closes it as soon as the token is taken. **The Python version above is
+still the one in use.** See PLAN.md for the switch-over.
+
+- **Building** needs [background-tools-lib](https://github.com/gareth-jones-zen/background-tools-lib) checked out
+  beside this repository, then `dotnet test -c Release`. Set the `BackgroundToolsLib` property to use a checkout
+  somewhere else.
+- **Parity is tested against the Python version itself.** `tests/parity` runs the Python code (from `src/`, as
+  tagged `v0.2.2`) as an oracle, with the clock frozen and the hook and People First faked, to make the goldens the
+  .NET tests must match: synthetic sync scenarios (every chart, changes file, contact sheet and state file by
+  SHA-256, the report, summary, log lines and hook input, and `who`), csv quoting, tel: links, escaping, sorting,
+  repr, settings errors and the run lock's name. Every person in the goldens is made up. `tests/parity/live.py`
+  and `tests/ParityRunner` compare the two on a real directory, locally only, printing counts and hashes.
+- **Deliberate differences:**
+  - two Python crashes fixed. A chart skipped once (its file edited by hand, a sharp shrink, or its top person
+    missing) while the snapshot moved on raised KeyError on every later sync; a manager loop through a chart's top
+    person recursed until Python gave up. Neither changes the output when the crash wouldn't have happened;
+  - people with the same name are listed in the chart's order in the changes (Python's order was arbitrary);
+  - a state file that's JSON but not an object stops the sync with a clear error (Python crashed);
+  - output redirected to a file or pipe is UTF-8 (Python used the code page, replacing what didn't fit);
+  - error messages from .NET (HTTP, file system, People First) are worded as .NET words them.
