@@ -28,13 +28,13 @@ Playwright), with the same profile lock as the Python tools.
 | `contacts.py` | `Contacts.cs` | csv QUOTE_MINIMAL, `html.escape`, `str.isdigit` for tel: links, the vCard's CRLF; contacts.vcf is rewritten on every sync, as in Python |
 | `peoplefirst.py` | `PeopleFirst.cs` | PeopleFirstClient's `Session`, `ReportingLine`, `ContactAsync` |
 | `run.py` | `Sync.cs` | `json.dumps` via PyCompat's `PyJson`; frozen clock and fakes injectable |
-| `config.py` | `Config.cs` | Tomlyn; paths through PyCompat's `PyPath` and `RealPath` (Python's `resolve()`) |
+| `config.py` | `Config.cs` | Tomlyn; paths through PyCompat's `PyPath` (`Resolve` is Python's `resolve()`) |
 | `cli.py`, `autostart.py`, `locks.py` | `Cli.cs`, `Autostart.cs` | argparse's messages and exit codes; the task through WinBackground |
-| (new) | `Py.cs`, `Interim/` | Python behaviours; `RealPath`, `ShellRun` and `ConsoleText` copied from teams-channel-notes until they move into the library |
+| (new) | `Py.cs` | Python behaviours not in PyCompat: csv quoting, `html.escape`, `repr()` of any text, strftime, `isdigit` by position. The hook runs through WinBackground's `Shell.Run` (stdin, folder, UTF-8) and output through its `ConsoleText` |
 
 ## How parity was checked
 
-1. **The 16 Python tests, by name**, plus 23 new ones (39; one is the local golden, skipped without it).
+1. **The 16 Python tests, by name**, plus 24 new ones (40; one is the local golden, skipped without it).
 2. **The Python as an oracle** (`tests/parity/oracle.py`): org-directory's own `run()` with the clock frozen and the
    hook and People First faked. `scenarios.py` makes synthetic scenarios (several syncs in a row, the directory
    changing, files edited by hand, People First failing at different ages, awkward text); 60 are committed, and a

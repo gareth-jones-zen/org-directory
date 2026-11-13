@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using OrgDirectory.Interim;
 using PyCompat;
 using WinBackground;
 
@@ -273,7 +272,7 @@ public static class Sync
     public static void AfterRun(Config config, Report report, Action<string> log,
         Func<IReadOnlyList<string>, string, string, TimeSpan, Completed>? runner = null)
     {
-        runner ??= (args, input, cwd, timeout) => ShellRun.Run(args, input, cwd, timeout);
+        runner ??= (args, input, cwd, timeout) => Shell.Run(args[0], args.Skip(1), timeout, input, cwd, utf8: true);
         var payload = Payload(config, report);
         log($"after-run hook: {string.Join(' ', config.AfterRun)}");
         try
@@ -290,7 +289,7 @@ public static class Sync
         }
         catch (Win32Exception error)
         {
-            log($"after-run hook failed: {ShellRun.WinErrorText(error)}");
+            log($"after-run hook failed: {Shell.WinErrorText(error)}");
         }
         catch (Exception error)
         {

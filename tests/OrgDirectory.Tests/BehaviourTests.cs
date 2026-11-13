@@ -65,6 +65,15 @@ public sealed class BehaviourTests : IDisposable
     }
 
     [Fact]
+    public void the_hook_is_a_real_program_reading_stdin_from_the_settings_folder()
+    {
+        dir.Write("config.toml", Settings.Replace("[\"python\", \"hook.py\"]", "[\"findstr\", \"config\"]", StringComparison.Ordinal));
+        var logs = new List<string>();
+        var report = Sync.Run(Load(), new FakeGraph(Org()), hook: true, log: logs.Add, today: new DateOnly(2026, 11, 8));
+        Assert.Equal("  hook: " + Sync.Payload(Load(), report), logs[^1]);   // findstr echoes the line it was given
+    }
+
+    [Fact]
     public void a_stale_member_list_does_not_crash_the_next_sync()
     {
         // Python raised KeyError here, on every sync from then on: the chart was skipped once (a hand-edited file)

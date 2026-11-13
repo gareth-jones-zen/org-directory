@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using EdgeDevTools;
+using PyCompat;
 
 namespace OrgDirectory;
 
@@ -11,33 +11,12 @@ public class PyValueError(string message, Exception? inner = null) : Exception(m
 /// sorting by code point (and stably), html.escape, the csv module's quoting, str.isdigit and the date formats.</summary>
 public static class Py
 {
-    /// <summary>str.lower(): .NET's differs for U+0130 and a final capital sigma (see EdgeProfile.PythonLower).</summary>
-    public static string Lower(string text) => EdgeProfile.PythonLower(text);
+    /// <summary>str.lower(): .NET's differs for U+0130 and a final capital sigma (PyCompat's PyStr.Lower).</summary>
+    public static string Lower(string text) => PyStr.Lower(text);
 
     /// <summary>Python compares strings by code point; .NET's ordinal comparison is by UTF-16 unit, which puts a
-    /// character above U+FFFF (two units starting U+D8xx) before U+E000 to U+FFFF.</summary>
-    public static readonly IComparer<string> CodePoints = Comparer<string>.Create(CompareCodePoints);
-
-    public static int CompareCodePoints(string? a, string? b)
-    {
-        if (ReferenceEquals(a, b))
-            return 0;
-        if (a is null)
-            return -1;
-        if (b is null)
-            return 1;
-        var n = Math.Min(a.Length, b.Length);
-        for (var i = 0; i < n; i++)
-        {
-            if (a[i] == b[i])
-                continue;
-            return Order(a[i]).CompareTo(Order(b[i]));
-        }
-        return a.Length.CompareTo(b.Length);
-    }
-
-    // Surrogates (U+D800 to U+DFFF) stand for code points above U+FFFF, so they sort after U+E000 to U+FFFF.
-    private static int Order(char c) => c is >= '\ud800' and <= '\udfff' ? c + 0x2000 : c >= '' ? c - 0x800 : c;
+    /// character above U+FFFF before U+E000 to U+FFFF (PyCompat's PyStr.Order).</summary>
+    public static IComparer<string> CodePoints => PyStr.Order;
 
     /// <summary>sorted(items, key=key): stable, by code point.</summary>
     public static List<T> Sorted<T>(IEnumerable<T> items, Func<T, string> key) => items.OrderBy(key, CodePoints).ToList();

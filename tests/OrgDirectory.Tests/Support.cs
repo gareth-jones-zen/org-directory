@@ -47,7 +47,7 @@ public static class Users
 /// <summary>A folder in the temp directory, deleted afterwards.</summary>
 public sealed class TempFolder : IDisposable
 {
-    public string Path { get; } = OrgDirectory.Interim.RealPath.Resolve(
+    public string Path { get; } = PyCompat.PyPath.Resolve(
         Directory.CreateTempSubdirectory("org-directory-tests-").FullName);
 
     public string File(params string[] parts) => System.IO.Path.Combine([Path, .. parts]);

@@ -1,4 +1,4 @@
-using OrgDirectory.Interim;
+using PyCompat;
 using WinBackground;
 
 namespace OrgDirectory;
@@ -25,7 +25,7 @@ public static class Autostart
     {
         var background = Path.Combine(programDir, BackgroundExe);
         var exe = File.Exists(background) ? background : Path.Combine(programDir, ConsoleExe);
-        return (exe, ["--config", RealPath.Resolve(configPath), "sync", "--hook", "--scheduled"]);
+        return (exe, ["--config", PyPath.Resolve(configPath), "sync", "--hook", "--scheduled"]);
     }
 
     /// <summary>When it runs: daily at daily_at and at logon, as a job (stopped after 30 minutes), started now.</summary>

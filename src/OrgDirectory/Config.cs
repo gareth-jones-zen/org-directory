@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using OrgDirectory.Interim;
 using PyCompat;
 using Tomlyn;
 using Tomlyn.Model;
@@ -101,7 +100,7 @@ public sealed partial class Config
     private static string PathSetting(string value, string folder, Func<string, string?> env)
     {
         var expanded = PyPath.Pure(PyPath.ExpandVars(PyPath.ExpandUser(value, env), env));
-        return PyPath.IsAbsolute(expanded) ? expanded : RealPath.Resolve(System.IO.Path.Combine(folder, expanded));
+        return PyPath.IsAbsolute(expanded) ? expanded : PyPath.Resolve(System.IO.Path.Combine(folder, expanded));
     }
 
     /// <summary>12 hex characters from the settings path, ignoring case: the default state file's name.</summary>
@@ -117,7 +116,7 @@ public sealed partial class Config
     {
         env ??= Environment;
         var given = !string.IsNullOrEmpty(path) ? path : env(EnvConfig) is { Length: > 0 } fromEnv ? fromEnv : DefaultPath(env);
-        var full = RealPath.Resolve(given);
+        var full = PyPath.Resolve(given);
         if (!File.Exists(full))
             throw new FileNotFoundException($"No settings file at {full}. Run `org-directory config` to create one.");
         TomlTable raw;
