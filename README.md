@@ -148,9 +148,59 @@ The directory changes slowly, so there's no watcher: a Task Scheduler task, `org
 - **A chart whose top person can't be found isn't written.** The other charts still are.
 - **One sync at a time:** a sync started by hand waits for the daily one.
 
+## Committing to git: `[git]`
+
+If the charts are in a git repository, `[git]` commits what each sync wrote:
+
+```toml
+[git]
+repo = "."                                   # the repository (relative to this file)
+push = true                                  # optional (default false): push after each commit
+trailers = ["Co-Authored-By: Name <name@example.com>"]   # optional: the message's last lines
+```
+
+It commits after a sync that wrote a file, with `--hook` (the daily task always passes it), before the hook. **Only the
+charts and changes file written are committed** (never the contact sheets), and of those only the ones git sees as
+changed, so nothing else changed or staged in the repository is swept up. The message names each file by its folder and
+name, in git status's order (changed files git already tracks first, then new ones):
+
+```
+Ingest directory changes, directory technology
+
+Filed automatically by org-directory (tools/org-directory.toml).
+
+Co-Authored-By: Name <name@example.com>
+```
+
+**A commit that fails** (a hook in the repository refusing it, say) is logged and notified ("Filed, not committed"); the
+charts stay as written. **A push that fails** is only logged; the commit stays. `commit = false` keeps the section but
+commits nothing; with no section, nothing is committed. It's
+[background-tools-lib](https://github.com/gareth-jones-zen/background-tools-lib)'s `RepoCommit`: git is run from the
+PATH, every path is literal, another git holding the index is waited for briefly, and the log has counts and the commit
+id, never contents.
+
+## Review queue: `[review]`
+
+With a `[review]` section, the same syncs also put **what changed** in a review queue: one JSON file that whatever
+starts your day (a script, an assistant's session) reads, shows you and clears. It's background-tools-lib's
+`ReviewQueue`, so other tools can share the file.
+
+```toml
+[review]
+file = "%LOCALAPPDATA%/my-tools/review.json"   # the queue file
+source = "org-directory"                       # the name its items go under
+# lock = "my-tools-review"                     # optional: the writers' lock (default: the folder and file name)
+```
+
+**One item per sync that found changes**, of type `org-changes`, with `arrived` (when), `changes` (as in the hook's
+report), `summary_needed` (always false) and `dictation` (always empty), which keep it the same shape as the other items
+in a queue of transcripts, and `title`: each change's text joined with "; ", without the bold marks (`New title: Bob
+Builder, Solutions Architect → Senior Solutions Architect.`). **The items name people**, so keep the queue file out of
+any repo; the log only counts them. If the queue can't be written, the log says why and the sync carries on.
+
 ## The after-run hook
 
-To do something with what's written, such as commit it to git, set `after_run`:
+To do anything else with what's written, set `after_run`:
 
 ```toml
 after_run = ["powershell", "-NoProfile", "-File", "commit.ps1"]   # any command, and its arguments
@@ -165,7 +215,7 @@ It runs after a sync that wrote a file, with `--hook` (the daily task always pas
 ```
 
 It's the same shape as [doc-filer](https://github.com/gareth-jones-zen/doc-filer)'s and
-[teams-channel-notes](https://github.com/gareth-jones-zen/teams-channel-notes)' hooks, plus `changes`, so one script can serve all three. Its output goes to the log.
+[teams-channel-sync](https://github.com/gareth-jones-zen/teams-channel-sync)'s hooks, plus `changes`, so one script can serve all three. Its output goes to the log.
 
 ## Sign-in and permissions
 

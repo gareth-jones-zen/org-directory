@@ -1,0 +1,194 @@
+[
+ {
+  "name": "written",
+  "committed": {
+   "stakeholders/directory/technology.md": "# Technology\n",
+   "stakeholders/directory/changes.md": "# Changes\n"
+  },
+  "written": {
+   "stakeholders/directory/technology.md": "# Technology\n- Ann\n",
+   "stakeholders/directory/zen.md": "# Zen\n",
+   "stakeholders/directory/changes.md": "# Changes\n- Ann\n"
+  },
+  "report": {
+   "config": "<repo>/tools/org-directory.toml",
+   "written": [
+    "<repo>/stakeholders/directory/technology.md",
+    "<repo>/stakeholders/directory/zen.md",
+    "<repo>/stakeholders/directory/changes.md"
+   ],
+   "failed": [],
+   "unmatched": [],
+   "summary": "3 written, 2 change(s)",
+   "changes": [
+    {
+     "chart": "technology",
+     "text": "New title: **Ann Example**, Engineer (was Developer)"
+    },
+    {
+     "chart": "zen",
+     "text": "Joined: **Zoë Example**, Head of Things"
+    }
+   ]
+  },
+  "commits": [
+   {
+    "message": "Ingest directory changes, directory technology, directory zen\n\nFiled automatically by doc-filer (tools/doc_filer_hook.py).\n\nCo-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>",
+    "files": [
+     "M\tstakeholders/directory/changes.md",
+     "M\tstakeholders/directory/technology.md",
+     "A\tstakeholders/directory/zen.md"
+    ]
+   }
+  ],
+  "status": [],
+  "notes": [],
+  "items": [
+   {
+    "id": "04b1b0de",
+    "source": "transcripts",
+    "type": "org-changes",
+    "added": "2026-11-17T09:30:05",
+    "arrived": "2026-11-17T09:30:05",
+    "changes": [
+     {
+      "chart": "technology",
+      "text": "New title: **Ann Example**, Engineer (was Developer)"
+     },
+     {
+      "chart": "zen",
+      "text": "Joined: **Zoë Example**, Head of Things"
+     }
+    ],
+    "summary_needed": false,
+    "dictation": [],
+    "title": "New title: Ann Example, Engineer (was Developer); Joined: Zoë Example, Head of Things"
+   }
+  ]
+ },
+ {
+  "name": "unchanged-with-changes",
+  "committed": {
+   "stakeholders/directory/technology.md": "# Technology\n"
+  },
+  "written": {
+   "stakeholders/directory/technology.md": "# Technology\n"
+  },
+  "report": {
+   "config": "<repo>/tools/org-directory.toml",
+   "written": [
+    "<repo>/stakeholders/directory/technology.md"
+   ],
+   "failed": [],
+   "unmatched": [],
+   "summary": "1 written, 1 change(s)",
+   "changes": [
+    {
+     "chart": "technology",
+     "text": "New title: **Ann Example**, Engineer (was Developer)"
+    }
+   ]
+  },
+  "commits": [],
+  "status": [],
+  "notes": [],
+  "items": [
+   {
+    "id": "4ee53b3e",
+    "source": "transcripts",
+    "type": "org-changes",
+    "added": "2026-11-17T09:30:05",
+    "arrived": "2026-11-17T09:30:05",
+    "changes": [
+     {
+      "chart": "technology",
+      "text": "New title: **Ann Example**, Engineer (was Developer)"
+     }
+    ],
+    "summary_needed": false,
+    "dictation": [],
+    "title": "New title: Ann Example, Engineer (was Developer)"
+   }
+  ]
+ },
+ {
+  "name": "no-changes",
+  "written": {
+   "stakeholders/directory/zen.md": "# Zen\n"
+  },
+  "report": {
+   "config": "<repo>/tools/org-directory.toml",
+   "written": [
+    "<repo>/stakeholders/directory/zen.md"
+   ],
+   "failed": [],
+   "unmatched": [],
+   "summary": "1 written, 0 change(s)",
+   "changes": []
+  },
+  "commits": [
+   {
+    "message": "Ingest directory zen\n\nFiled automatically by doc-filer (tools/doc_filer_hook.py).\n\nCo-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>",
+    "files": [
+     "A\tstakeholders/directory/zen.md"
+    ]
+   }
+  ],
+  "status": [],
+  "notes": [],
+  "items": []
+ },
+ {
+  "name": "failing-hook",
+  "failing_hook": true,
+  "written": {
+   "stakeholders/directory/zen.md": "# Zen\n"
+  },
+  "report": {
+   "config": "<repo>/tools/org-directory.toml",
+   "written": [
+    "<repo>/stakeholders/directory/zen.md"
+   ],
+   "failed": [],
+   "unmatched": [],
+   "summary": "1 written, 1 change(s)",
+   "changes": [
+    {
+     "chart": "zen",
+     "text": "Joined: **Zoë Example**, Head of Things"
+    }
+   ]
+  },
+  "commits": [],
+  "status": [
+   "A  stakeholders/directory/zen.md"
+  ],
+  "notes": [
+   [
+    "Filed, not committed",
+    [
+     "directory zen",
+     "See doc-filer.log."
+    ]
+   ]
+  ],
+  "items": [
+   {
+    "id": "ac800933",
+    "source": "transcripts",
+    "type": "org-changes",
+    "added": "2026-11-17T09:30:05",
+    "arrived": "2026-11-17T09:30:05",
+    "changes": [
+     {
+      "chart": "zen",
+      "text": "Joined: **Zoë Example**, Head of Things"
+     }
+    ],
+    "summary_needed": false,
+    "dictation": [],
+    "title": "Joined: Zoë Example, Head of Things"
+   }
+  ]
+ }
+]

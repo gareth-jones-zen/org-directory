@@ -130,7 +130,7 @@ public static class Cli
         try
         {
             report = Sync.Run(config, host.Graph(config, args.Scheduled ? false : null), args.DryRun, args.Hook, log,
-                host.ReadPeopleFirst, host.HookRunner, now: host.Now);
+                host.ReadPeopleFirst, host.HookRunner, now: host.Now, notify: host.Notify);
         }
         catch (Exception error)
         {
