@@ -22,6 +22,15 @@ public sealed record Chart(string Name, string Root, string Output, string Headi
 ///     daily_at = "09:00"                      # optional: when autostart's daily sync runs
 ///     changes_file = "org/changes.md"         # optional: a running log of what changed, newest first
 ///
+///     [git]                                   # optional: commit what a sync wrote (see the README)
+///     repo = "."
+///     push = true
+///     trailers = ["Co-Authored-By: Name &lt;name@example.com&gt;"]
+///
+///     [review]                                # optional: what changed, as an item in a review queue
+///     file = "%LOCALAPPDATA%/my-tools/review.json"
+///     source = "org-directory"
+///
 ///     [[chart]]
 ///     name = "technology"
 ///     root = "head.of.tech@example.com"       # the person at the top, by email or sign-in name
@@ -73,6 +82,12 @@ public sealed partial class Config
     public required string StateFile { get; init; }
     public required string LogFile { get; init; }
     public List<string> AfterRun { get; init; } = [];
+
+    /// <summary>[git], or null: nothing committed. Commits what a sync wrote (with --hook).</summary>
+    public RepoCommit.GitSettings? Git { get; init; }
+
+    /// <summary>[review], or null: nothing queued. One item for a sync's changes.</summary>
+    public ReviewQueue.ReviewSettings? Review { get; init; }
     public string DailyAt { get; init; } = "09:00";
     public string? ChangesFile { get; init; }
     public ContactSettings? Contacts { get; set; }
@@ -140,9 +155,26 @@ public sealed partial class Config
         // Python's \d matches any Unicode digit; the times Task Scheduler takes are ASCII, and so is this check.
         if (!DailyAtPattern().IsMatch(dailyAt))
             throw new PyValueError($"daily_at in {full} should be a time such as \"09:00\".");
+        RepoCommit.GitSettings? git = null;
+        ReviewQueue.ReviewSettings? review = null;
+        try
+        {
+            if (raw.TryGetValue("git", out var gitSection))
+                git = RepoCommit.GitSettings.Read(gitSection, full, value => PathSetting(value, folder, env));
+            if (raw.TryGetValue("review", out var reviewSection))
+                review = ReviewQueue.ReviewSettings.Read(reviewSection, full, value => PathSetting(value, folder, env));
+        }
+        catch (FormatException error)
+        {
+            throw new PyValueError(error.Message);
+        }
+        if (git is not null && !Directory.Exists(git.Repo))
+            throw new PyValueError($"repo under [git] in {full} isn't a folder: {git.Repo}");
         var config = new Config
         {
             Path = full,
+            Git = git,
+            Review = review,
             LoginHint = Text("login_hint"),
             Tenant = Text("tenant") ?? "organizations",
             MsalCache = OptionalPath("msal_cache"),

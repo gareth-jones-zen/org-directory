@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using PyCompat;
+using RepoCommit;
 using WinBackground;
 
 namespace OrgDirectory;
@@ -66,10 +67,12 @@ public sealed class Report
 /// <summary>Reads People First's numbers (PeopleFirst.Fetch, or a fake in tests).</summary>
 public delegate JsonObject PeopleFirstReader(PeopleFirstSettings settings, Action<string> log);
 
-/// <summary>One locked sync: fetch the directory, write the charts that changed, log the changes, run the hook.
+/// <summary>One locked sync: fetch the directory, write the charts that changed, log the changes, then [review]'s
+/// item, [git]'s commit and the hook.
 ///
-/// The hook is how a repo commits what was written: the tool knows nothing about git. It gets a JSON report on stdin,
-/// the same shape doc-filer and teams-channel-notes give theirs, plus the changes:
+/// [review] puts the changes in a review queue as one item; [git] commits exactly the files written. The hook is for
+/// anything else a repo wants done. It gets a JSON report on stdin, the same shape doc-filer and teams-channel-sync
+/// give theirs, plus the changes:
 ///
 ///     {"config": "...", "written": ["C:\\...\\technology.md"], "failed": [], "unmatched": [],
 ///      "summary": "1 written", "changes": [{"chart": "technology", "text": "New title: ..."}]}
@@ -297,11 +300,85 @@ public static class Sync
         }
     }
 
+    /// <summary>"directory technology": a file's folder and its name without the extension, as a commit names it.</summary>
+    public static string Named(string repoPath)
+    {
+        var parts = repoPath.Split('/');
+        var name = parts[^1];
+        var dot = name.LastIndexOf('.');
+        return $"{(parts.Length > 1 ? parts[^2] : "")} {(dot > 0 && dot < name.Length - 1 ? name[..dot] : name)}";
+    }
+
+    /// <summary>[git]: commit what the sync wrote, only the files git sees as changed, in git status's order:
+    /// "Ingest directory changes, directory technology", then "Filed automatically by org-directory ({settings})." and
+    /// the trailers. If the commit fails, a notification ("Filed, not committed"); a push that fails is only logged. The
+    /// contact sheets are never passed to it. Null when there's no [git] (or commit = false).</summary>
+    public static CommitResult? Commit(Config config, Report report, Action<string> log, Action<string, IReadOnlyList<string>> notify)
+    {
+        if (config.Git is not { Commit: true } git)
+            return null;
+        var committer = git.Open(log);
+        var names = "";
+        void Tell() => notify("Filed, not committed", [Py.Head(names, 300), $"See {Path.GetFileName(config.LogFile)}."]);
+        try
+        {
+            var paths = committer.Changed(report.Written.Where(File.Exists));
+            if (paths.Count == 0)
+            {
+                log("git: nothing to commit");
+                return CommitResult.Nothing;
+            }
+            names = string.Join(", ", paths.Select(Named));
+            var settings = committer.RepoPath(config.Path) ?? Path.GetFileName(config.Path);
+            var result = committer.Commit(Committer.Message($"Ingest {names}", $"Filed automatically by org-directory ({settings})."),
+                paths, trailers: git.Trailers, push: git.Push);
+            if (result.Error is not null)
+                Tell();
+            return result;
+        }
+        catch (Exception error) when (error is GitException or InvalidOperationException or Win32Exception or TimeoutException or IOException)
+        {
+            log($"git: commit failed: {error.Message}");
+            if (names.Length == 0)
+                names = string.Join(", ", report.Written.Select(Path.GetFileNameWithoutExtension));
+            Tell();
+            return CommitResult.Failed(error.Message);
+        }
+    }
+
+    /// <summary>[review]: the sync's changes as one item, type "org-changes": arrived (when), changes (the list, as the
+    /// report has them), summary_needed (false) and dictation (empty), which keep it the shape of the other items in a
+    /// queue of transcripts, and a title, each change's text joined with "; " and the bold marks taken out. Logged with
+    /// a count only; nothing it does stops the run.</summary>
+    public static void Review(Config config, Report report, Action<string> log, Func<DateTime> now)
+    {
+        if (config.Review is not { } review || report.Changes.Count == 0)
+            return;
+        try
+        {
+            var title = string.Join("; ", report.Changes.Select(c => c.Text.Replace("**", "", StringComparison.Ordinal)));
+            review.Open(now).Add(review.Source, "org-changes", new JsonObject
+            {
+                ["arrived"] = Py.IsoSeconds(now()),
+                ["changes"] = report.ChangesJson(),
+                ["summary_needed"] = false,
+                ["dictation"] = new JsonArray(),
+                ["title"] = title.Length > 0 ? title : "org-changes",
+            });
+            log($"review: queued {report.Changes.Count} directory change(s) under {review.Source}");
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            log($"review queue failed: {error.Message}");
+        }
+    }
+
     /// <summary>run(): the sync under the run lock (TimeoutException if another doesn't finish within ten minutes),
-    /// then the hook if wanted, not a dry run, something was written and after_run is set.</summary>
+    /// then, if wanted, not a dry run and something was written: [review]'s item, [git]'s commit, and the hook if
+    /// after_run is set.</summary>
     public static Report Run(Config config, IGraph graph, bool dryRun = false, bool hook = false, Action<string>? log = null,
         PeopleFirstReader? readPeopleFirst = null, Func<IReadOnlyList<string>, string, string, TimeSpan, Completed>? runner = null,
-        DateOnly? today = null, Func<DateTime>? now = null)
+        DateOnly? today = null, Func<DateTime>? now = null, Action<string, IReadOnlyList<string>>? notify = null)
     {
         log ??= _ => { };
         Report report;
@@ -311,8 +388,13 @@ public static class Sync
                 throw new TimeoutException($"Another sync for {config.Path} didn't finish within {LockTimeoutSeconds / 60:0} minutes.");
             report = Once(config, graph, dryRun, today, log, readPeopleFirst, now);
         }
-        if (hook && !dryRun && report.Written.Count > 0 && config.AfterRun.Count > 0)
-            AfterRun(config, report, log, runner);
+        if (hook && !dryRun && report.Written.Count > 0)
+        {
+            Review(config, report, log, now ?? (() => DateTime.Now));
+            Commit(config, report, log, notify ?? Toast.Notify);
+            if (config.AfterRun.Count > 0)
+                AfterRun(config, report, log, runner);
+        }
         return report;
     }
 }
