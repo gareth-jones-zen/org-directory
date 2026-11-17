@@ -13,6 +13,7 @@ public sealed record Chart(string Name, string Root, string Output, string Headi
 
 /// <summary>The settings file: who signs in, and which org charts to write.
 ///
+///     base = "base-config.toml"               # optional: settings shared with other tools
 ///     login_hint = "you@example.com"          # optional
 ///     tenant = "organizations"                # optional: a tenant id pins sign-in to one organisation
 ///     msal_cache = "..."                      # optional: share another tool's sign-in
@@ -63,6 +64,7 @@ public sealed partial class Config
 
     public const string Template = """
         # org-directory settings. See the README.
+        # base = "base-config.toml"
         # login_hint = "you@example.com"
         # changes_file = "org/changes.md"
 
@@ -125,6 +127,13 @@ public sealed partial class Config
     [GeneratedRegex(@"\A([01][0-9]|2[0-3]):[0-5][0-9]\z", RegexOptions.CultureInvariant)]
     private static partial Regex DailyAtPattern();
 
+    /// <summary>Every top-level setting this tool reads: what a base file (base = "...") may supply.</summary>
+    public static readonly string[] KnownKeys =
+    [
+        "login_hint", "tenant", "msal_cache", "state_file", "log_file", "after_run", "daily_at", "changes_file", "git",
+        "review", "chart", "contacts", "people_first",
+    ];
+
     /// <summary>load(path): the given path, else ORG_DIRECTORY_CONFIG, else the default. Throws FileNotFoundException if
     /// there's no file there, and PyValueError for settings that can't be used.</summary>
     public static Config Load(string? path = null, Func<string, string?>? env = null)
@@ -140,7 +149,13 @@ public sealed partial class Config
             var text = PyStr.ReadText(full);
             if (text.StartsWith('﻿'))
                 throw new PyValueError("Invalid statement (at line 1, column 1)");   // tomllib refuses a byte order mark
-            raw = TomlSerializer.Deserialize(text, TomlContext.Default.TomlTable) ?? [];
+            var read = BaseSettings.Read(text, full, env, KnownKeys);
+            raw = read.Raw;
+            env = read.Env;   // from here on, paths expand with the base's [paths] first
+        }
+        catch (FormatException error)   // the base it names: missing, unreadable, or not a base
+        {
+            throw new PyValueError(error.Message, error);
         }
         catch (Exception error) when (error is not (IOException or UnauthorizedAccessException or PyValueError))
         {
@@ -314,6 +329,3 @@ public sealed partial class Config
         _ => throw new PyValueError($"{key} must be a list, as [\"python\", \"commit.py\"]."),
     };
 }
-
-[Tomlyn.Serialization.TomlSerializable(typeof(TomlTable))]
-internal partial class TomlContext : Tomlyn.Serialization.TomlSerializerContext;

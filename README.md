@@ -30,6 +30,7 @@ org-directory sign-in      # once: a browser opens to sign in to Microsoft
 Then add a `[[chart]]` to the settings file:
 
 ```toml
+base = "base-config.toml"   # optional: settings shared with other tools (see "Sharing settings with other tools")
 login_hint = "you@example.com"
 changes_file = "C:/Users/you/Documents/Org/changes.md"   # optional: a running log of changes
 
@@ -216,6 +217,20 @@ It runs after a sync that wrote a file, with `--hook` (the daily task always pas
 
 It's the same shape as [doc-filer](https://github.com/gareth-jones-zen/doc-filer)'s and
 [teams-channel-sync](https://github.com/gareth-jones-zen/teams-channel-sync)'s hooks, plus `changes`, so one script can serve all three. Its output goes to the log.
+
+## Sharing settings with other tools: `base`
+
+Several tools built on the shared library can keep their common settings in one file, named at the top of each
+tool's settings: `base = "base-config.toml"` (relative to the settings file). Then:
+
+- **the base's `[paths]` are variables** for this tool's paths (`log_file = "%EA_LOCAL%/org-directory.log"`,
+  `edge_profile = "%EDGE_PEOPLE_FIRST%"` under `[people_first]`), looked up before the environment;
+- **its other settings that this tool knows and doesn't set itself are used**: typically `login_hint`, `tenant`
+  and `msal_cache`;
+- **a table such as `[git]` or `[review]` applies only if this file has that section too** (even empty); its keys
+  fill in the section, this file's own winning.
+
+A missing or unreadable base is a settings error. The loader is background-tools-lib's `PyCompat.BaseSettings`.
 
 ## Sign-in and permissions
 
