@@ -125,6 +125,37 @@ public sealed class GitReviewTests : IDisposable
     }
 
     [Fact]
+    public void A_folder_that_isnt_a_repository_writes_the_charts_and_notifies_nothing()
+    {
+        var folder = Path.Combine(root, "plain");
+        var config = Settings(Path.Combine(folder, "config.toml"), """
+            state_file = "state.json"
+            log_file = "log.txt"
+            changes_file = "org/changes.md"
+
+            [git]
+            repo = "."
+            push = true
+
+            [[chart]]
+            name = "tech"
+            root = "cto@example.com"
+            output = "org/tech.md"
+            heading = "Technology"
+            """);
+        Sync.Run(config, new FakeGraph(Org()), hook: true, log: log.Add, notify: Notify, now: () => Now, today: new DateOnly(2026, 11, 8));
+        Assert.True(File.Exists(Path.Combine(folder, "org", "tech.md")));
+        Assert.Empty(notes);
+        Assert.Single(log, l => l.StartsWith("git: not committing: ", StringComparison.Ordinal) && l.EndsWith(" isn't a git repository.", StringComparison.Ordinal));
+        Assert.DoesNotContain(log, l => l.Contains("commit failed", StringComparison.Ordinal));
+        Assert.False(Directory.Exists(Path.Combine(folder, ".git")));
+        var report = new Report();
+        report.Written.Add(Path.Combine(folder, "org", "tech.md"));
+        Assert.EndsWith(" isn't a git repository.", Sync.Commit(config, report, log.Add, Notify)!.Skipped);
+        Assert.Empty(notes);
+    }
+
+    [Fact]
     public void Neither_section_commits_or_queues_anything()
     {
         var config = Settings(Path.Combine(root, "config.toml"), "state_file = \"state.json\"\n");

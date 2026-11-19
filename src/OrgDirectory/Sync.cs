@@ -312,12 +312,15 @@ public static class Sync
     /// <summary>[git]: commit what the sync wrote, only the files git sees as changed, in git status's order:
     /// "Ingest directory changes, directory technology", then "Filed automatically by org-directory ({settings})." and
     /// the trailers. If the commit fails, a notification ("Filed, not committed"); a push that fails is only logged. The
-    /// contact sheets are never passed to it. Null when there's no [git] (or commit = false).</summary>
+    /// contact sheets are never passed to it. Null when there's no [git] (or commit = false). git not set up (not
+    /// installed, not a repository, or a folder inside one) is Skipped: one log line, no notification.</summary>
     public static CommitResult? Commit(Config config, Report report, Action<string> log, Action<string, IReadOnlyList<string>> notify)
     {
         if (config.Git is not { Commit: true } git)
             return null;
         var committer = git.Open(log);
+        if (committer.Skipped is { } why)
+            return CommitResult.Skip(why);   // the charts are written; the library has said why, once
         var names = "";
         void Tell() => notify("Filed, not committed", [Py.Head(names, 300), $"See {Path.GetFileName(config.LogFile)}."]);
         try
