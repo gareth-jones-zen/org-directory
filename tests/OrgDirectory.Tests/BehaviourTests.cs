@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using WinBackground;
+using PyCompat;
 using static OrgDirectory.Tests.Users;
 
 namespace OrgDirectory.Tests;
@@ -174,10 +175,12 @@ public sealed class BehaviourTests : IDisposable
         public bool Stop() => true;
         public bool Start() => true;
 
-        public IReadOnlyDictionary<string, string>? Status() => new Dictionary<string, string>
+        public Dictionary<string, string> State { get; set; } = new()
         {
             ["state"] = "Ready", ["last_run"] = "today", ["last_result"] = "0", ["next_run"] = "tomorrow", ["command"] = "x",
         };
+
+        public IReadOnlyDictionary<string, string>? Status() => State;
     }
 
     [Fact]
@@ -193,11 +196,66 @@ public sealed class BehaviourTests : IDisposable
         Assert.Equal(dir.File(Autostart.BackgroundExe), exe);
         Assert.Equal(["--config", dir.File("config.toml"), "sync", "--hook", "--scheduled"], args);
         Assert.Equal(dir.Path, workingDir);
-        Assert.Equal(new TaskSchedule { AtLogon = true, DailyAt = "07:45", KeepRunning = false }, schedule);
+        Assert.Equal(new TaskSchedule { AtLogon = true, DailyAt = "07:45", KeepRunning = false, Fingerprint = "v1 job every=0 daily=07:45 logon=yes unlock=0" }, schedule);
         Assert.StartsWith("Autostart is on: 'org-directory sync' runs daily at 07:45 and at logon", output.ToString(), StringComparison.Ordinal);
         output.GetStringBuilder().Clear();
         Cli.Run(["autostart", "status"], new CliHost { Out = output, Tasks = _ => task });
         Assert.Contains("  next run     tomorrow", output.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void schedule_is_read_and_the_old_daily_at_still_works()
+    {
+        Assert.Equal("09:00", Load().Schedule.DailyAt);   // the default
+        Assert.Empty(Load().Deprecations);
+        dir.Write("config.toml", Settings + "\n[schedule]\ndaily_at = \"08:15\"\n");
+        Assert.Equal("08:15", Load().Schedule.DailyAt);
+        Assert.Equal("08:15", Load().DailyAt);
+        Assert.Empty(Load().Deprecations);
+        dir.Write("config.toml", "daily_at = \"07:45\"\n" + Settings);
+        Assert.Equal("07:45", Load().Schedule.DailyAt);
+        Assert.Contains("daily_at", Assert.Single(Load().Deprecations));
+    }
+
+    [Fact]
+    public void both_forms_or_an_unknown_schedule_key_is_an_error()
+    {
+        dir.Write("config.toml", "daily_at = \"07:45\"\n" + Settings + "\n[schedule]\ndaily_at = \"08:15\"\n");
+        Assert.Contains("both set", Assert.Throws<PyValueError>(Load).Message);
+        dir.Write("config.toml", Settings + "\n[schedule]\ndaily = \"08:15\"\n");
+        Assert.Contains("[schedule]", Assert.Throws<PyValueError>(Load).Message);
+    }
+
+    [Fact]
+    public void a_scheduled_sync_keeps_to_the_schedule()
+    {
+        dir.Write("config.toml", Settings + "\n[schedule]\ndaily_at = \"09:00\"\nend_date = \"2026-11-01\"\n");
+        var host = new CliHost
+        {
+            Out = new StringWriter(), Err = new StringWriter(),
+            Graph = (_, _) => throw new InvalidOperationException("a scheduled sync after end_date shouldn't read the directory"),
+            Now = () => new DateTime(2026, 11, 23, 9, 0, 0),
+        };
+        Assert.Equal(0, Cli.Run(["--config", dir.File("config.toml"), "sync", "--scheduled"], host));
+        Assert.Contains("sync: not run", File.ReadAllText(dir.File("log.txt")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void autostart_status_says_when_the_task_needs_registering_again()
+    {
+        var task = new FakeTask();
+        string Status()
+        {
+            var output = new StringWriter();
+            Cli.Run(["--config", dir.File("config.toml"), "autostart", "status"], new CliHost { Out = output, Tasks = _ => task });
+            return output.ToString();
+        }
+        task.State["description"] = "x (schedule: v1 job every=0 daily=09:00 logon=yes unlock=0)";
+        Assert.DoesNotContain("autostart on", Status(), StringComparison.Ordinal);
+        task.State["description"] = "x (schedule: v1 job every=0 daily=09:00 logon=yes unlock=1)";
+        Assert.Contains("settings changed since this task was registered: run `org-directory autostart on`", Status(), StringComparison.Ordinal);
+        task.State.Remove("description");
+        Assert.Contains("registered before its schedule was recorded", Status(), StringComparison.Ordinal);
     }
 
     [Fact]

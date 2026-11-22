@@ -126,6 +126,17 @@ public static class Cli
     private static int SyncCommand(Config config, Args args, CliHost host)
     {
         var log = Logger.Create(config.LogFile, !args.Json && !args.Scheduled ? host.LogEcho ?? host.Out : null, stampEcho: false);
+        if (args.Scheduled)
+        {
+            foreach (var note in config.Deprecations)
+                log($"settings: {note}");
+            // A run by the task keeps to [schedule]'s hours, days and end_date; one by hand always runs.
+            if (!config.Schedule.IsActive(host.Now?.Invoke() ?? DateTime.Now, out var why))
+            {
+                log($"sync: not run ({why})");
+                return 0;
+            }
+        }
         Report report;
         try
         {
@@ -229,8 +240,8 @@ public static class Cli
             {
                 var config = OrgDirectory.Config.Load(args.Config, host.Env);   // check the settings load before scheduling them
                 var (exe, taskArgs) = Autostart.Command(host.ProgramDir, config.Path);
-                var command = task.Enable(exe, taskArgs, Path.GetDirectoryName(config.Path), Autostart.Schedule(config.DailyAt));
-                Print(host.Out, $"Autostart is on: '{Autostart.TaskName}' runs daily at {config.DailyAt} and at logon, and has "
+                var command = task.Enable(exe, taskArgs, Path.GetDirectoryName(config.Path), config.Schedule.ToTaskSchedule(TaskKind.Job));
+                Print(host.Out, $"Autostart is on: '{Autostart.TaskName}' runs {When(config.Schedule)}, and has "
                                 + $"started now.\n  {command}\n  log: {config.LogFile}");
             }
             else if (args.Positional == "off")
@@ -245,6 +256,13 @@ public static class Cli
                     Print(host.Out, $"Autostart is on ('{Autostart.TaskName}').");
                     foreach (var key in new[] { "state", "last_run", "last_result", "next_run", "command" })
                         Print(host.Out, $"  {key.Replace('_', ' '),-12} {info.GetValueOrDefault(key, "")}");
+                    // Whether the task still matches [schedule] (only when the settings load; status needs none).
+                    OrgDirectory.Config? settings = null;
+                    try { settings = OrgDirectory.Config.Load(args.Config, host.Env); }
+                    catch (Exception error) when (error is FileNotFoundException or PyValueError or IOException) { }
+                    if (settings is not null
+                        && ScheduleDrift.Advice(ScheduleDrift.Check(info, settings.Schedule.Fingerprint(TaskKind.Job)), "org-directory") is { } advice)
+                        Print(host.Out, $"  {advice}");
                 }
             }
             return 0;
@@ -254,6 +272,21 @@ public static class Cli
             Print(host.Err, error.Message);
             return 2;
         }
+    }
+
+    /// <summary>When the task runs, in words: "daily at 09:00 and at logon".</summary>
+    internal static string When(ScheduleSettings schedule)
+    {
+        var parts = new List<string>();
+        if (schedule.EveryMinutes is > 0 and var minutes)
+            parts.Add($"every {minutes} minutes");
+        else if (schedule.DailyAt is { } daily)
+            parts.Add($"daily at {daily}");
+        if (schedule.AtLogon)
+            parts.Add("at logon");
+        if (schedule.AfterUnlockMinutes > 0)
+            parts.Add($"{schedule.AfterUnlockMinutes} minute(s) after each unlock");
+        return parts.Count <= 1 ? string.Join("", parts) : $"{string.Join(", ", parts[..^1])} and {parts[^1]}";
     }
 
     /// <summary>print(): a line, with "\n" written as "\r\n" as Python's stdout does on Windows.</summary>

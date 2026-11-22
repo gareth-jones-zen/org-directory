@@ -130,7 +130,7 @@ org-directory people-first sign-in               # only if check says it needs a
 ## Keeping it current: `autostart`
 
 ```
-org-directory autostart on       # sync daily at daily_at (default 09:00) and at logon, and now
+org-directory autostart on       # sync as [schedule] says (daily 09:00 and at logon), and now
 org-directory autostart status
 org-directory autostart off
 ```
@@ -141,6 +141,25 @@ The directory changes slowly, so there's no watcher: a Task Scheduler task, `org
 - It runs `org-directory-background.exe`, so there's no window.
 - **It never opens a browser.** A lapsed sign-in, or a chart that couldn't be written, is notified. Run `org-directory sign-in` at a console to fix a sign-in.
 - It logs to `%LOCALAPPDATA%\org-directory\org-directory.log` by default (set `log_file`).
+- `autostart status` also says when the task no longer matches the settings ("run `org-directory autostart on`").
+
+### `[schedule]`
+
+The scheduling settings every tool on background-tools-lib shares (its README, "[schedule]: the shared scheduling
+settings", has every key). org-directory's task syncs daily at 09:00 and at logon by default:
+
+```toml
+[schedule]
+daily_at = "09:00"          # or every_minutes = N instead
+at_logon = true             # the default
+after_unlock_minutes = 0    # the default: no run after an unlock
+end_date = "2027-01-01"     # optional: from this date a scheduled sync does nothing
+```
+
+`hours`, `days` and `end_date` are kept by the task's runs (`sync --scheduled`); a `sync` run by hand always runs.
+The trigger keys are fixed when the task is registered: after changing them, run `org-directory autostart on` again.
+`daily_at` at the top level, the old name, is still read, with a line in the log; setting it alongside `[schedule]` is
+an error.
 
 ## Safety checks
 

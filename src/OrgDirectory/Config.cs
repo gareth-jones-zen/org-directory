@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using PyCompat;
 using Tomlyn;
 using Tomlyn.Model;
+using WinBackground;
 
 namespace OrgDirectory;
 
@@ -20,8 +21,11 @@ public sealed record Chart(string Name, string Root, string Output, string Headi
 ///     state_file = "..."                      # optional: the last snapshot of the directory
 ///     log_file = "..."                        # optional
 ///     after_run = ["python", "commit.py"]     # optional: run after a sync that wrote files (JSON on stdin)
-///     daily_at = "09:00"                      # optional: when autostart's daily sync runs
 ///     changes_file = "org/changes.md"         # optional: a running log of what changed, newest first
+///
+///     [schedule]                              # optional: when autostart's sync runs (background-tools-lib's shared keys)
+///     daily_at = "09:00"                      # daily at this time (the default), and at logon
+///     # daily_at at the top level is the old name: still read, with a line in the log
 ///
 ///     [git]                                   # optional: commit what a sync wrote (see the README)
 ///     repo = "."
@@ -91,6 +95,15 @@ public sealed partial class Config
     /// <summary>[review], or null: nothing queued. One item for a sync's changes.</summary>
     public ReviewQueue.ReviewSettings? Review { get; init; }
     public string DailyAt { get; init; } = "09:00";
+
+    /// <summary>The tool's own defaults for [schedule]: the sync daily at 09:00 and at logon.</summary>
+    public static readonly ScheduleSettings ScheduleDefaults = new() { DailyAt = "09:00" };
+
+    /// <summary>[schedule] (a job): when autostart's sync runs. daily_at at the top level is its old name.</summary>
+    public ScheduleSettings Schedule { get; init; } = ScheduleDefaults;
+
+    /// <summary>Old setting names still read: one log line each when a scheduled sync runs.</summary>
+    public IReadOnlyList<string> Deprecations { get; init; } = [];
     public string? ChangesFile { get; init; }
     public ContactSettings? Contacts { get; set; }
     public PeopleFirstSettings PeopleFirst { get; set; } = new();
@@ -131,7 +144,7 @@ public sealed partial class Config
     public static readonly string[] KnownKeys =
     [
         "login_hint", "tenant", "msal_cache", "state_file", "log_file", "after_run", "daily_at", "changes_file", "git",
-        "review", "chart", "contacts", "people_first",
+        "review", "chart", "contacts", "people_first", "schedule",
     ];
 
     /// <summary>load(path): the given path, else ORG_DIRECTORY_CONFIG, else the default. Throws FileNotFoundException if
@@ -166,10 +179,36 @@ public sealed partial class Config
         string? Text(string key) => raw.TryGetValue(key, out var value) ? Str(value, key) : null;
         string? OptionalPath(string key) => Truthy(raw, key) ? PathSetting(Str(raw[key], key), folder, env) : null;
 
-        var dailyAt = Text("daily_at") ?? "09:00";
+        // [schedule], the shared scheduling settings; daily_at at the top level is its old name, still read (not both).
+        var oldDaily = Text("daily_at");
         // Python's \d matches any Unicode digit; the times Task Scheduler takes are ASCII, and so is this check.
-        if (!DailyAtPattern().IsMatch(dailyAt))
+        if (oldDaily is not null && !DailyAtPattern().IsMatch(oldDaily))
             throw new PyValueError($"daily_at in {full} should be a time such as \"09:00\".");
+        var deprecations = new List<string>();
+        ScheduleSettings schedule;
+        if (raw.TryGetValue("schedule", out var section))
+        {
+            if (oldDaily is not null)
+                throw new PyValueError($"{full}: daily_at and [schedule] are both set: keep daily_at under [schedule].");
+            if (section is not TomlTable scheduleTable)
+                throw new PyValueError($"{full}: schedule should be a [schedule] table.");
+            try
+            {
+                schedule = ScheduleSettings.Parse(scheduleTable, ScheduleDefaults, TaskKind.Job, $"{full}: [schedule]");
+            }
+            catch (FormatException error)
+            {
+                throw new PyValueError(error.Message);
+            }
+        }
+        else if (oldDaily is not null)
+        {
+            schedule = ScheduleDefaults with { DailyAt = oldDaily };
+            deprecations.Add("daily_at at the top level is the old name: move it to [schedule] daily_at");
+        }
+        else
+            schedule = ScheduleDefaults;
+        var dailyAt = schedule.DailyAt ?? "09:00";
         RepoCommit.GitSettings? git = null;
         ReviewQueue.ReviewSettings? review = null;
         try
@@ -197,6 +236,8 @@ public sealed partial class Config
             LogFile = OptionalPath("log_file") ?? PyPath.Pure(System.IO.Path.Combine(local, "org-directory.log")),
             AfterRun = raw.TryGetValue("after_run", out var hook) ? Strings(hook, "after_run") : [],
             DailyAt = dailyAt,
+            Schedule = schedule,
+            Deprecations = deprecations,
             ChangesFile = OptionalPath("changes_file"),
         };
 
